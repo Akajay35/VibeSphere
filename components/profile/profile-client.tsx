@@ -14,10 +14,11 @@ export default function ProfileClient({ profile, followers, following, posts }: 
   const [saving, setSaving] = useState(false);
 
   if (!profile) return <main className="mx-auto max-w-2xl p-6">Profile not found.</main>;
+  const profileId = profile.id;
 
   async function save() {
     setSaving(true);
-    await supabase.from("profiles").update({ display_name: name.trim(), bio: bio.trim() }).eq("id", profile.id);
+    await supabase.from("profiles").update({ display_name: name.trim(), bio: bio.trim() }).eq("id", profileId);
     setSaving(false); setEditing(false); window.location.reload();
   }
 
