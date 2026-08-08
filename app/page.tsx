@@ -1,6 +1,7 @@
 import Link from "next/link";
 import CreatePost from "@/components/feed/create-post";
 import PostActions from "@/components/feed/post-actions";
+import Comments from "@/components/feed/comments";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function HomePage() {
@@ -25,7 +26,7 @@ export default async function HomePage() {
           {user ? <CreatePost /> : <div className="rounded-2xl border bg-white p-5 text-center shadow-sm"><p className="font-semibold">Join the VibeSphere community.</p><Link href="/auth/signup" className="mt-3 inline-block rounded-full bg-[var(--brand)] px-5 py-2 font-bold text-white">Create account</Link></div>}
           {(posts ?? []).map((post) => {
             const profile = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
-            return <article key={post.id} className="rounded-2xl border bg-white p-4 shadow-sm"><div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-full bg-gray-200 font-bold">{(profile?.display_name || profile?.username || "V")[0].toUpperCase()}</div><div className="flex-1"><div className="font-bold">{profile?.display_name || "VibeSphere creator"}</div><div className="text-sm text-gray-500">@{profile?.username || "creator"} · {new Date(post.created_at).toLocaleString()}</div></div><button className="text-gray-400">•••</button></div><p className="mt-4 whitespace-pre-wrap leading-7">{post.caption}</p><PostActions postId={post.id} authorId={post.author_id} /></article>;
+            return <article key={post.id} className="rounded-2xl border bg-white p-4 shadow-sm"><div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-full bg-gray-200 font-bold">{(profile?.display_name || profile?.username || "V")[0].toUpperCase()}</div><div className="flex-1"><div className="font-bold">{profile?.display_name || "VibeSphere creator"}</div><div className="text-sm text-gray-500">@{profile?.username || "creator"} · {new Date(post.created_at).toLocaleString()}</div></div><button className="text-gray-400">•••</button></div><p className="mt-4 whitespace-pre-wrap leading-7">{post.caption}</p><PostActions postId={post.id} authorId={post.author_id} /><Comments postId={post.id} /></article>;
           })}
           {(!posts || posts.length === 0) && <div className="rounded-2xl border bg-white p-8 text-center text-gray-500">No posts yet. Be the first creator to post.</div>}
         </section>
