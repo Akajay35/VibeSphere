@@ -5,8 +5,10 @@ import { createClient } from '@/lib/supabase/client';
 
 type Message = { id: string; conversation_id: string; sender_id: string; body: string; created_at: string };
 
+type SupabaseClient = ReturnType<typeof createClient>;
+
 export default function MessagesPage() {
-  const supabase = createClient();
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -14,6 +16,17 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) {
+      setLoading(false);
+      return;
+    }
+    setSupabase(createClient());
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
     let channel: ReturnType<typeof supabase.channel> | undefined;
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -28,11 +41,11 @@ export default function MessagesPage() {
       setLoading(false);
     })();
     return () => { if (channel) void supabase.removeChannel(channel); };
-  }, []);
+  }, [supabase]);
 
   async function send() {
     const text = body.trim();
-    if (!text || !userId || !conversationId) return;
+    if (!supabase || !text || !userId || !conversationId) return;
     const { error } = await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: userId, body: text });
     if (!error) setBody('');
   }
