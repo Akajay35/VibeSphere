@@ -7,20 +7,24 @@ import { createClient } from '@/lib/supabase/client';
 type Notification = { id: string; type: string; created_at: string; read_at: string | null; actor_id: string | null; profiles?: { username?: string; display_name?: string } | null };
 
 export default function NotificationsPage() {
-  const supabase = createClient();
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
   const [items, setItems] = useState<Notification[]>([]);
 
-  async function load() {
-    const { data } = await supabase.from('notifications').select('id,type,created_at,read_at,actor_id,profiles(username,display_name)').order('created_at', { ascending: false }).limit(50);
-    setItems((data ?? []) as Notification[]);
-  }
-
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    const client = createClient();
+    setSupabase(client);
+    void (async () => {
+      const { data } = await client.from('notifications').select('id,type,created_at,read_at,actor_id,profiles(username,display_name)').order('created_at', { ascending: false }).limit(50);
+      setItems((data ?? []) as Notification[]);
+    })();
+  }, []);
 
   async function markRead(id?: string) {
+    if (!supabase) return;
     if (id) await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id);
     else await supabase.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null);
-    await load();
+    const { data } = await supabase.from('notifications').select('id,type,created_at,read_at,actor_id,profiles(username,display_name)').order('created_at', { ascending: false }).limit(50);
+    setItems((data ?? []) as Notification[]);
   }
 
   const text = (n: Notification) => {
