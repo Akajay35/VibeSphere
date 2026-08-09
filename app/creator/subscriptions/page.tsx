@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type Plan = { id: string; name: string; description: string | null; price_minor: number; currency: string; is_active: boolean };
-
 type Supabase = SupabaseClient;
 
 export default function CreatorSubscriptionsPage() {
@@ -23,11 +22,12 @@ export default function CreatorSubscriptionsPage() {
 
   useEffect(() => {
     if (!supabase) return;
+    const client = supabase;
 
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await client.auth.getUser();
       if (!user) { setLoading(false); return; }
-      const { data } = await supabase
+      const { data } = await client
         .from('creator_plans')
         .select('id,name,description,price_minor,currency,is_active')
         .eq('creator_id', user.id)
@@ -40,11 +40,12 @@ export default function CreatorSubscriptionsPage() {
   }, [supabase]);
 
   async function createPlan() {
-    if (!supabase) return;
-    const { data: { user } } = await supabase.auth.getUser();
+    const client = supabase;
+    if (!client) return;
+    const { data: { user } } = await client.auth.getUser();
     const amount = Math.round(Number(price) * 100);
     if (!user || !Number.isFinite(amount) || amount < 0 || !name.trim()) return;
-    const { error } = await supabase.from('creator_plans').insert({
+    const { error } = await client.from('creator_plans').insert({
       creator_id: user.id,
       name: name.trim(),
       description: description.trim() || null,
@@ -52,7 +53,7 @@ export default function CreatorSubscriptionsPage() {
       currency: 'INR',
     });
     if (!error) {
-      const { data } = await supabase
+      const { data } = await client
         .from('creator_plans')
         .select('id,name,description,price_minor,currency,is_active')
         .eq('creator_id', user.id)
