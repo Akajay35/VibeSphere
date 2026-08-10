@@ -25,6 +25,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Validate secrets
         shell: bash
@@ -39,7 +40,7 @@ jobs:
         run: npx --yes wrangler whoami
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --legacy-peer-deps --no-audit --no-fund
 
       - name: Type check
         run: npm run typecheck
