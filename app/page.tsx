@@ -4,6 +4,8 @@ import PostActions from "@/components/feed/post-actions";
 import Comments from "@/components/feed/comments";
 import { createClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const supabase = await createClient();
   const [{ data: posts }, { data: { user } }] = await Promise.all([
