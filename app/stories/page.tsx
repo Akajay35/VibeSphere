@@ -5,16 +5,22 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
 type Story = { id: string; media_url: string; media_type: 'image' | 'video'; caption: string | null; author_id: string; expires_at: string; profiles?: { username?: string; display_name?: string } | null };
+type Supabase = ReturnType<typeof createClient>;
 
 export default function StoriesPage() {
-  const supabase = createClient();
+  const [supabase, setSupabase] = useState<Supabase | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [active, setActive] = useState<Story | null>(null);
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) return;
+    const client = createClient();
+    setSupabase(client);
     void (async () => {
-      const { data } = await supabase.from('stories').select('id,media_url,media_type,caption,author_id,expires_at,profiles(username,display_name)').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false });
+      const { data } = await client.from('stories').select('id,media_url,media_type,caption,author_id,expires_at,profiles(username,display_name)').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false });
       setStories((data ?? []) as Story[]);
     })();
   }, []);
@@ -23,6 +29,7 @@ export default function StoriesPage() {
     const story = stories[i];
     if (!story) return;
     setIndex(i); setActive(story);
+    if (!supabase) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (user && user.id !== story.author_id) await supabase.from('story_views').upsert({ story_id: story.id, viewer_id: user.id }, { onConflict: 'story_id,viewer_id' });
   }
