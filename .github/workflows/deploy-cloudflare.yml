@@ -49,6 +49,7 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      # Keep the standalone production build verification before Cloudflare.
       - name: Verify production build
         run: npm run build
 
