@@ -2,6 +2,8 @@ import Link from 'next/link';
 import ReelCard from '@/components/reels/reel-card';
 import { createClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ReelsPage() {
   const supabase = await createClient();
   const { data: reels, error } = await supabase
