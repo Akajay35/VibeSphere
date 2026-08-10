@@ -17,25 +17,22 @@ export default function CreatorSubscriptionsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) { setLoading(false); return; }
     setSupabase(createClient());
   }, []);
 
   useEffect(() => {
     if (!supabase) return;
     const client = supabase;
-
     async function load() {
       const { data: { user } } = await client.auth.getUser();
       if (!user) { setLoading(false); return; }
-      const { data } = await client
-        .from('creator_plans')
-        .select('id,name,description,price_minor,currency,is_active')
-        .eq('creator_id', user.id)
-        .order('created_at', { ascending: false });
+      const { data } = await client.from('creator_plans').select('id,name,description,price_minor,currency,is_active').eq('creator_id', user.id).order('created_at', { ascending: false });
       setPlans((data ?? []) as Plan[]);
       setLoading(false);
     }
-
     void load();
   }, [supabase]);
 
@@ -45,19 +42,9 @@ export default function CreatorSubscriptionsPage() {
     const { data: { user } } = await client.auth.getUser();
     const amount = Math.round(Number(price) * 100);
     if (!user || !Number.isFinite(amount) || amount < 0 || !name.trim()) return;
-    const { error } = await client.from('creator_plans').insert({
-      creator_id: user.id,
-      name: name.trim(),
-      description: description.trim() || null,
-      price_minor: amount,
-      currency: 'INR',
-    });
+    const { error } = await client.from('creator_plans').insert({ creator_id: user.id, name: name.trim(), description: description.trim() || null, price_minor: amount, currency: 'INR' });
     if (!error) {
-      const { data } = await client
-        .from('creator_plans')
-        .select('id,name,description,price_minor,currency,is_active')
-        .eq('creator_id', user.id)
-        .order('created_at', { ascending: false });
+      const { data } = await client.from('creator_plans').select('id,name,description,price_minor,currency,is_active').eq('creator_id', user.id).order('created_at', { ascending: false });
       setPlans((data ?? []) as Plan[]);
     }
   }
