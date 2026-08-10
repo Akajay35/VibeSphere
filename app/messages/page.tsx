@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
-type Message = { id: string; conversation_id: string; sender_id: string; body: string; created_at: string };
+// This page only needs Supabase in the browser. Keeping it dynamic prevents
+// accidental server/static prerendering from evaluating browser-only data access.
+export const dynamic = 'force-dynamic';
 
+type Message = { id: string; conversation_id: string; sender_id: string; body: string; created_at: string };
 type SupabaseClient = ReturnType<typeof createClient>;
 
 export default function MessagesPage() {
