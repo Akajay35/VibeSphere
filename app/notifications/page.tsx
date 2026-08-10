@@ -11,6 +11,14 @@ export default function NotificationsPage() {
   const [items, setItems] = useState<Notification[]>([]);
 
   useEffect(() => {
+    // Do not construct a Supabase client during a build/prerender when the
+    // public environment variables are unavailable. This page can still
+    // render its empty state and initialize normally in the browser once
+    // the variables are present.
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) return;
+
     const client = createClient();
     setSupabase(client);
     void (async () => {
