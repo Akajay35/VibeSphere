@@ -13,14 +13,22 @@ type Reel = {
   media_assets?: { path: string; mime_type: string } | null;
 };
 
+type Supabase = ReturnType<typeof createClient>;
+
 export default function ReelCard({ reel }: { reel: Reel }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
   const [showComments, setShowComments] = useState(false);
-  const supabase = createClient();
+  const [supabase, setSupabase] = useState<Supabase | null>(null);
   const profile = Array.isArray(reel.profiles) ? reel.profiles[0] : reel.profiles;
   const media = Array.isArray(reel.media_assets) ? reel.media_assets[0] : reel.media_assets;
-  const videoUrl = media ? supabase.storage.from('media').getPublicUrl(media.path).data.publicUrl : '';
+  const videoUrl = media && supabase ? supabase.storage.from('media').getPublicUrl(media.path).data.publicUrl : '';
+
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (url && key) setSupabase(createClient());
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
