@@ -26,16 +26,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Verify Cloudflare-compatible Next.js routing
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Deploying commit: $(git rev-parse HEAD)"
-          if [[ -f proxy.ts || -f middleware.ts || -f src/proxy.ts || -f src/middleware.ts ]]; then
-            echo "::error::Node.js middleware/proxy is not supported by the Cloudflare deployment target. Remove the middleware/proxy entry point before deploying."
-            exit 1
-          fi
+          cache: npm
 
       - name: Validate deployment secrets
         shell: bash
@@ -48,10 +39,21 @@ jobs:
               missing=1
             fi
           done
+
+          if [[ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]] && [[ ! "$CLOUDFLARE_ACCOUNT_ID" =~ ^[a-fA-F0-9]{32}$ ]]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID must be the full 32-character Cloudflare Account ID."
+            missing=1
+          fi
+
           if [[ "$missing" -ne 0 ]]; then
-            echo "Configure the missing repository secrets before deployment."
             exit 1
           fi
+
+      - name: Verify Cloudflare authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler whoami
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
@@ -59,7 +61,6 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-      # Keep the standalone production build verification before Cloudflare.
       - name: Verify production build
         run: npm run build
 
