@@ -33,10 +33,28 @@ jobs:
           for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; do
             if [[ -z "${!name:-}" ]]; then echo "::error::Missing $name"; exit 1; fi
           done
-          if [[ ! "$CLOUDFLARE_ACCOUNT_ID" =~ ^[A-Fa-f0-9]{32}$ ]]; then echo "::error::CLOUDFLARE_ACCOUNT_ID must be 32 hex characters"; exit 1; fi
+          if [[ ! "$CLOUDFLARE_ACCOUNT_ID" =~ ^[A-Fa-f0-9]{32}$ ]]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID must be 32 hex characters"
+            exit 1
+          fi
 
       - name: Verify Cloudflare authentication
-        run: npx --yes wrangler whoami
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking Cloudflare API token..."
+          verify_json="$(curl -fsS https://api.cloudflare.com/client/v4/user/tokens/verify \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")"
+          if ! printf '%s' "$verify_json" | node -e '
+            let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).success===true?0:1));
+          '; then
+            echo "::error::Cloudflare API token verification failed. The token is invalid, expired, or revoked."
+            exit 1
+          fi
+          echo "Cloudflare API token is valid."
+          echo "Checking the configured Cloudflare account..."
+          npx --yes wrangler whoami
+          echo "Configured account ID: ${CLOUDFLARE_ACCOUNT_ID:0:4}****${CLOUDFLARE_ACCOUNT_ID: -4}"
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps --no-audit --no-fund
@@ -48,4 +66,28 @@ jobs:
         run: npm run build
 
       - name: Cloudflare deploy
-        run: npm run deploy
+        shell: bash
+        run: |
+          set +e
+          npm run deploy 2>&1 | tee cloudflare-deploy.log
+          status=${PIPESTATUS[0]}
+          if [[ "$status" -ne 0 ]]; then
+            echo ""
+            echo "================ Cloudflare deployment diagnostics ================"
+            if grep -q "Authentication error \[code: 10000\]" cloudflare-deploy.log; then
+              echo "::error::Cloudflare rejected the deployment credentials (API error 10000)."
+              echo "::error::The token is valid, but it does not have permission to deploy the VibeSphere Worker in the configured account."
+              echo "::error::Check the token's account scope and Workers deployment permissions, and confirm CLOUDFLARE_ACCOUNT_ID points to the same account."
+            elif grep -q "code: 7003" cloudflare-deploy.log; then
+              echo "::error::Cloudflare could not route the request to the configured account/Worker (API error 7003)."
+              echo "::error::Check CLOUDFLARE_ACCOUNT_ID and the Worker name/configuration."
+            elif grep -qi "not authorized\|unauthorized\|permission" cloudflare-deploy.log; then
+              echo "::error::Cloudflare rejected the deployment because of an authorization/permission problem."
+              echo "::error::Check the API token account scope and Workers deployment permissions."
+            else
+              echo "::error::Cloudflare deployment failed. See the lines above for the original Wrangler error."
+            fi
+            echo "===================================================================="
+            exit "$status"
+          fi
+          echo "Cloudflare deployment completed successfully."
