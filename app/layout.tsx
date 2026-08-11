@@ -1,9 +1,9 @@
-import './globals.css';
-import type { Metadata } from 'next';
+import type { Metadata } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: 'VibeSphere',
-  description: 'A clean, creator-focused social experience.',
+  title: "VibeSphere",
+  description: "A clean social space for creators and communities.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
