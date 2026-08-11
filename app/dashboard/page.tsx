@@ -1,6 +1,5 @@
-"use client";
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase';
+import Link from "next/link";
 
-export default function DashboardPage(){const [status,setStatus]=useState('Checking configuration…');useEffect(()=>{try{const client=createClient();client.auth.getUser().then(({data,error})=>setStatus(error?'Supabase connected · signed out':'Supabase connected · '+(data.user?.email||'signed out'))).catch(()=>setStatus('Supabase configured · signed out'));}catch{setStatus('Supabase is not configured yet · app remains usable')}} ,[]);return <main className="shell"><nav><strong>VibeSphere</strong><div className="navlinks"><Link href="/">Home</Link><Link href="/explore">Explore</Link></div></nav><section className="hero"><span className="pill">Dashboard</span><h1>Your sphere.</h1><p>{status}</p><div className="cards"><article><h2>Profile</h2><p>Your creator profile will appear here.</p></article><article><h2>Content</h2><p>Stories and reels management will appear here.</p></article><article><h2>Community</h2><p>Messages and notifications will appear here.</p></article></div></section></main>}
+export default function DashboardPage() {
+  return <main className="simple-page"><Link className="brand" href="/">Vibe<span>Sphere</span></Link><div className="panel"><p className="eyebrow">Your space</p><h1>Dashboard</h1><p className="muted">Your creator dashboard is ready for the next VibeSphere phase.</p><div className="feature-grid"><article className="feature"><h2>Posts</h2><p>0 published</p></article><article className="feature"><h2>Followers</h2><p>0 followers</p></article><article className="feature"><h2>Drafts</h2><p>0 drafts</p></article></div><p className="muted"><Link href="/explore">Go to Explore →</Link></p></div></main>;
+}
