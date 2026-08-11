@@ -41,54 +41,46 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Cloudflare authentication
+      - name: Verify Cloudflare account access
         shell: bash
         run: |
           set -euo pipefail
-          echo "Checking Cloudflare API token..."
+          echo "Checking Cloudflare credentials for the configured account..."
+          echo "Target account: ${CLOUDFLARE_ACCOUNT_ID:0:4}****${CLOUDFLARE_ACCOUNT_ID: -4}"
 
-          verify_json="$(curl -sS https://api.cloudflare.com/client/v4/user/tokens/verify \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")" || {
-              echo "::error::Could not contact the Cloudflare API to verify the token."
+          response_file="cloudflare-auth.json"
+          http_code="$(curl -sS -o "$response_file" -w '%{http_code}' \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json")" || {
+              echo "::error::Could not reach the Cloudflare API."
               exit 1
             }
 
-          if ! printf '%s' "$verify_json" | node -e '
-            let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).success===true?0:1));
-          '; then
-            echo "::error::Cloudflare API token is not valid/active (token verification failed)."
-            printf '%s' "$verify_json" | node -e '
-              let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);for(const e of (j.errors||[])) console.log(`::error::Cloudflare API ${e.code}: ${e.message}`)}catch{}});
-            '
-            exit 1
-          fi
-          echo "Cloudflare API token is valid and active."
+          success="$(node -e '
+            const fs=require("fs");
+            try { const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(j.success===true?"true":"false"); }
+            catch { process.stdout.write("false"); }
+          ' "$response_file")"
 
-          echo "Checking token access to the configured Cloudflare account..."
-          account_json="$(curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")" || {
-              echo "::error::Could not contact the Cloudflare account API."
-              exit 1
-            }
-
-          if ! printf '%s' "$account_json" | node -e '
-            let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).success===true?0:1));
-          '; then
-            echo "::error::Cloudflare token is valid, but account access failed."
-            printf '%s' "$account_json" | node -e '
-              let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);for(const e of (j.errors||[])) console.log(`::error::Cloudflare API ${e.code}: ${e.message}`)}catch{}});
-            '
-            echo "::error::Check that CLOUDFLARE_ACCOUNT_ID is the account that owns the VibeSphere Worker."
-            echo "::error::Check the API token Account Resources scope includes this account."
-            echo "::error::Check the token has Workers Scripts permission (Edit/Write) for this account."
+          if [[ "$success" != "true" ]]; then
+            echo "::error::Cloudflare rejected access to the configured account (HTTP $http_code)."
+            node -e '
+              const fs=require("fs");
+              try {
+                const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+                for (const e of (j.errors||[])) console.log(`::error::Cloudflare API ${e.code}: ${e.message}`);
+              } catch {}
+            ' "$response_file"
+            echo "::error::Check CLOUDFLARE_ACCOUNT_ID is the account that owns VibeSphere."
+            echo "::error::Check CLOUDFLARE_API_TOKEN is a current Cloudflare API token (not an API key)."
+            echo "::error::For deployment, the token must have Workers Scripts Edit/Write permission for this account."
+            echo "::error::Also check the token's Account Resources scope includes this account."
             exit 1
           fi
 
-          echo "Cloudflare account access confirmed for ${CLOUDFLARE_ACCOUNT_ID:0:4}****${CLOUDFLARE_ACCOUNT_ID: -4}."
-          echo "Checking Wrangler account context..."
-          npx --yes wrangler whoami || {
-            echo "::warning::Wrangler could not display account context, but the direct Cloudflare API account check succeeded."
-          }
+          echo "Cloudflare account access confirmed."
+          echo "The workflow will now install dependencies, build, and deploy."
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps --no-audit --no-fund
@@ -110,13 +102,13 @@ jobs:
             echo "================ Cloudflare deployment diagnostics ================"
             if grep -q "Authentication error \[code: 10000\]" cloudflare-deploy.log; then
               echo "::error::Cloudflare API error 10000: deployment authentication/authorization was rejected."
-              echo "::error::The token may be valid but lacks Workers Scripts Edit/Write permission for the target account."
+              echo "::error::The token may be valid for reading the account but lacks Workers Scripts Edit/Write permission."
               echo "::error::Target account: ${CLOUDFLARE_ACCOUNT_ID:0:4}****${CLOUDFLARE_ACCOUNT_ID: -4}"
-              echo "::error::Check Cloudflare API Token -> Account Resources -> the target account -> Workers Scripts Edit/Write."
+              echo "::error::Open Cloudflare API Tokens and grant Account -> Workers Scripts -> Edit/Write for this account."
               echo "::error::Also confirm CLOUDFLARE_ACCOUNT_ID is the account that owns the VibeSphere Worker."
             elif grep -q "code: 7003" cloudflare-deploy.log; then
               echo "::error::Cloudflare API error 7003: the request could not be routed to the configured account/Worker."
-              echo "::error::Check CLOUDFLARE_ACCOUNT_ID and the Worker/service name in wrangler/OpenNext configuration."
+              echo "::error::Check CLOUDFLARE_ACCOUNT_ID and the Worker/service name in the OpenNext/Wrangler configuration."
             elif grep -qi "not authorized\|unauthorized\|permission" cloudflare-deploy.log; then
               echo "::error::Cloudflare rejected the deployment because of an authorization/permission problem."
               echo "::error::Check token account scope and Workers Scripts Edit/Write permission."
