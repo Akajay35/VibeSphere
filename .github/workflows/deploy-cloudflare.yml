@@ -1,3 +1,4 @@
+# Fresh deployment trigger after Cloudflare credential update
 name: VibeSphere CI and Cloudflare Deploy
 
 on:
@@ -47,40 +48,18 @@ jobs:
           set -euo pipefail
           echo "Checking Cloudflare credentials for the configured account..."
           echo "Target account: ${CLOUDFLARE_ACCOUNT_ID:0:4}****${CLOUDFLARE_ACCOUNT_ID: -4}"
-
           response_file="cloudflare-auth.json"
-          http_code="$(curl -sS -o "$response_file" -w '%{http_code}' \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: application/json")" || {
-              echo "::error::Could not reach the Cloudflare API."
-              exit 1
-            }
-
-          success="$(node -e '
-            const fs=require("fs");
-            try { const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(j.success===true?"true":"false"); }
-            catch { process.stdout.write("false"); }
-          ' "$response_file")"
-
+          http_code="$(curl -sS -o "$response_file" -w '%{http_code}' "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json")" || { echo "::error::Could not reach the Cloudflare API."; exit 1; }
+          success="$(node -e 'const fs=require("fs");try{const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(j.success===true?"true":"false")}catch{process.stdout.write("false")}' "$response_file")"
           if [[ "$success" != "true" ]]; then
             echo "::error::Cloudflare rejected access to the configured account (HTTP $http_code)."
-            node -e '
-              const fs=require("fs");
-              try {
-                const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-                for (const e of (j.errors||[])) console.log(`::error::Cloudflare API ${e.code}: ${e.message}`);
-              } catch {}
-            ' "$response_file"
+            node -e 'const fs=require("fs");try{const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));for(const e of(j.errors||[]))console.log(`::error::Cloudflare API ${e.code}: ${e.message}`)}catch{}' "$response_file"
             echo "::error::Check CLOUDFLARE_ACCOUNT_ID is the account that owns VibeSphere."
-            echo "::error::Check CLOUDFLARE_API_TOKEN is a current Cloudflare API token (not an API key)."
-            echo "::error::For deployment, the token must have Workers Scripts Edit/Write permission for this account."
-            echo "::error::Also check the token's Account Resources scope includes this account."
+            echo "::error::Check CLOUDFLARE_API_TOKEN is a current Cloudflare API token."
+            echo "::error::The token must have Workers Scripts Edit/Write permission and include this account in Account Resources."
             exit 1
           fi
-
           echo "Cloudflare account access confirmed."
-          echo "The workflow will now install dependencies, build, and deploy."
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps --no-audit --no-fund
@@ -98,20 +77,14 @@ jobs:
           npm run deploy 2>&1 | tee cloudflare-deploy.log
           status=${PIPESTATUS[0]}
           if [[ "$status" -ne 0 ]]; then
-            echo ""
             echo "================ Cloudflare deployment diagnostics ================"
             if grep -q "Authentication error \[code: 10000\]" cloudflare-deploy.log; then
               echo "::error::Cloudflare API error 10000: deployment authentication/authorization was rejected."
-              echo "::error::The token may be valid for reading the account but lacks Workers Scripts Edit/Write permission."
-              echo "::error::Target account: ${CLOUDFLARE_ACCOUNT_ID:0:4}****${CLOUDFLARE_ACCOUNT_ID: -4}"
-              echo "::error::Open Cloudflare API Tokens and grant Account -> Workers Scripts -> Edit/Write for this account."
-              echo "::error::Also confirm CLOUDFLARE_ACCOUNT_ID is the account that owns the VibeSphere Worker."
+              echo "::error::Check Workers Scripts Edit/Write permission, token account scope, and CLOUDFLARE_ACCOUNT_ID."
             elif grep -q "code: 7003" cloudflare-deploy.log; then
-              echo "::error::Cloudflare API error 7003: the request could not be routed to the configured account/Worker."
-              echo "::error::Check CLOUDFLARE_ACCOUNT_ID and the Worker/service name in the OpenNext/Wrangler configuration."
+              echo "::error::Cloudflare API error 7003: check CLOUDFLARE_ACCOUNT_ID and Worker configuration."
             elif grep -qi "not authorized\|unauthorized\|permission" cloudflare-deploy.log; then
               echo "::error::Cloudflare rejected the deployment because of an authorization/permission problem."
-              echo "::error::Check token account scope and Workers Scripts Edit/Write permission."
             else
               echo "::error::Cloudflare deployment failed. See the original Wrangler error above."
             fi
