@@ -25,7 +25,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
       - name: Validate secrets
         shell: bash
@@ -69,10 +68,10 @@ jobs:
           http="$(curl -sS -o "$response" -w '%{http_code}' "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: application/json')"
           success="$(node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));console.log(j.success===true?"true":"false")' "$response" 2>/dev/null || echo false)"
           if [[ "$success" != "true" ]]; then
-            echo "::error title=Cloudflare account access failed::The token is valid, but Cloudflare rejected access to account ${CLOUDFLARE_ACCOUNT_ID:0:4}****${CLOUDFLARE_ACCOUNT_ID: -4} (HTTP $http)."
+            echo "::error title=Cloudflare account access failed::The token is valid, but Cloudflare rejected access to the configured account (HTTP $http)."
             node -e 'const fs=require("fs");try{const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));for(const e of(j.errors||[]))console.log(`::error::Cloudflare ${e.code}: ${e.message}`)}catch{}' "$response"
             echo "::error::Most likely causes: wrong CLOUDFLARE_ACCOUNT_ID, token not scoped to this account, or missing Workers Scripts Edit/Write permission."
-            echo "::error::Open Cloudflare API Tokens, inspect the token Account Resources, and include the account that owns the vibesphere Worker."
+            echo "::error::Open Cloudflare API Tokens, inspect Account Resources, and include the account that owns the vibesphere Worker."
             exit 1
           fi
           echo "Cloudflare account access confirmed."
