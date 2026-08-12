@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 
 export default function SignupPage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,13 +19,16 @@ export default function SignupPage() {
     setMessage("");
     setError("");
 
-    if (!supabase) {
-      setError("Authentication is not configured yet. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to the deployment environment.");
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (cleanName.length < 2) {
+      setError("Please enter your name.");
       return;
     }
 
-    if (name.trim().length < 2) {
-      setError("Please enter your name.");
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setError("Please enter a valid email address.");
       return;
     }
 
@@ -32,32 +37,50 @@ export default function SignupPage() {
       return;
     }
 
+    if (!supabase) {
+      setError(
+        "Authentication is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to the deployment environment."
+      );
+      return;
+    }
+
     setLoading(true);
 
-    const { data, error: signupError } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: {
-          full_name: name.trim(),
+    try {
+      const { data, error: signupError } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: {
+            full_name: cleanName,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/login`,
         },
-      },
-    });
+      });
 
-    setLoading(false);
+      if (signupError) {
+        throw signupError;
+      }
 
-    if (signupError) {
-      setError(signupError.message);
-      return;
+      if (data.session) {
+        router.push("/dashboard");
+        router.refresh();
+        return;
+      }
+
+      setMessage(
+        "Account created. Check your email to confirm your account, then sign in."
+      );
+      setPassword("");
+    } catch (signupError) {
+      setError(
+        signupError instanceof Error
+          ? signupError.message
+          : "Unable to create your account."
+      );
+    } finally {
+      setLoading(false);
     }
-
-    if (data.session) {
-      window.location.href = "/";
-      return;
-    }
-
-    setMessage("Account created. Check your email to confirm your account, then sign in.");
-    setPassword("");
   }
 
   return (
@@ -70,10 +93,38 @@ export default function SignupPage() {
         <h1>Create account</h1>
         <p className="muted">Create your VibeSphere account and start exploring.</p>
 
-        <form className="form" onSubmit={handleSubmit}>
-          <input type="text" placeholder="Name" aria-label="Name" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} required disabled={loading} />
-          <input type="email" placeholder="Email" aria-label="Email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={loading} />
-          <input type="password" placeholder="Password" aria-label="Password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} required disabled={loading} />
+        <form className="form" onSubmit={handleSubmit} noValidate>
+          <input
+            type="text"
+            placeholder="Name"
+            aria-label="Name"
+            autoComplete="name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            required
+            disabled={loading}
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            aria-label="Email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+            disabled={loading}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            aria-label="Password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            minLength={6}
+            required
+            disabled={loading}
+          />
 
           {error ? <p role="alert" className="muted">{error}</p> : null}
           {message ? <p role="status" className="muted">{message}</p> : null}
